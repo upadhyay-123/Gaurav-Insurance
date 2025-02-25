@@ -1,0 +1,42 @@
+pipeline {
+    agent { label 'slave' }
+
+	environment {	
+		DOCKERHUB_CREDENTIALS=credentials('dockerlogin')
+	
+    stages {
+        stage('SCM_Checkout') {
+            steps {
+               echo "Perform SCM Checkout"
+			   git 'https://github.com/upadhyay-123/Gaurav-Healthcare.git'	   
+            }
+        }
+        stage('Application Build') {
+            steps {
+                echo "Perform Application Build"
+				sh 'mvn clean package'
+            }
+        }
+        stage('Build Docker Image') {    
+            steps {
+				sh 'docker version'
+				sh "docker build -t gaurav4docker/gaurav-insurance:${BUILD_NUMBER} ."
+				sh 'docker image list'
+				sh "docker tag gaurav4docker/gaurav-insurance:${BUILD_NUMBER} gaurav4docker/gaurav-insurance:latest"
+            }
+        }
+		stage('Login2DockerHub') {  
+
+			steps {
+				sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+			}
+		}
+		stage('Publish_to_Docker_Registry') {
+			steps {
+				sh "docker push gaurav4docker/gaurav-insurance:latest"
+			}
+		}
+        stage('Configure and Deploy to the test-server'){
+        ansiblePlaybook become: true, credentialsId: 'ansible-key', disableHostKeyChecking: true, installation: 'ansible', inventory: '/etc/ansible/hosts', playbook: 'ansible-playbook.yml'
+    }
+        
